@@ -35,13 +35,12 @@
     <div class="alarm-text">Noise Alert Alarm</div>
     <div class="btn-group" role="group" aria-label="Buttons">
       <button id="startButton" class="btn btn-primary alarm-button" onclick="startListening()">Start Listening</button>
-      <button id="pauseButton" class="btn btn-secondary alarm-button" onclick="pauseListening()" disabled>Pause Listening</button>
       <button id="stopButton" class="btn btn-danger alarm-button" onclick="stopListening()" disabled>Stop Listening</button>
     </div>
     <canvas id="chart"></canvas>
   </div>
 
-  <audio id="alarmSound" src="Whistle.mp3"></audio>
+  <audio id="alarmSound" src="Rick.mp3"></audio>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
@@ -117,15 +116,6 @@
       } else {
         alert('Your browser does not support the required Web Audio API.');
       }
-    }
-
-    function pauseListening() {
-      if (!isListening || isPaused) return;
-
-      isPaused = true;
-      clearInterval(timerInterval);
-      audioContext.suspend();
-      document.getElementById('pauseButton').innerText = 'Resume Listening';
     }
 
     function stopListening() {
