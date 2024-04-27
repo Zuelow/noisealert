@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Noise Alert Alarm</title>
+  <style>
+    .alarm-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+    }
+
+    .alarm-text {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .alarm-button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+
+    canvas {
+      max-width: 600px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="alarm-container">
+    <div class="alarm-text">Noise Alert Alarm</div>
+    <button class="alarm-button" onclick="startListening()">Start Listening</button>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <audio id="alarmSound" src="Whistle.mp3"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    var audioContext;
+    var analyser;
+    var bufferLength;
+    var dataArray;
+    var chart;
+    var isListening = false;
+    var alarmSound = document.getElementById('alarmSound');
+
+    function startListening() {
+      if (isListening) return;
+
+      // Check for browser support
+      if ('AudioContext' in window || 'webkitAudioContext' in window) {
+        // Create an audio context
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Create an analyser node
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+
+        // Process the input audio stream
+        function processAudio() {
+  analyser.getByteFrequencyData(dataArray);
+
+  // Calculate the average amplitude
+  var averageAmplitude = getAverageAmplitude();
+
+  // Check if the average amplitude exceeds a threshold
+  var noiseThreshold = 50; // Adjust this value as needed
+  var hasNoise = averageAmplitude > noiseThreshold;
+
+  if (hasNoise && alarmSound.paused) {
+    // Play the alarm sound when noise is detected and it's not already playing
+    alarmSound.play();
+  } else if (!hasNoise && !alarmSound.paused) {
+    // Stop the alarm sound when there is no noise and it's currently playing
+    alarmSound.pause();
+    alarmSound.currentTime = 0;
+  }
+
+  // Update the chart
+  updateChart();
+
+  if (isListening) {
+    requestAnimationFrame(processAudio);
+  }
+}
+
+        // Connect the audio context to the analyser node
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(function (stream) {
+            var source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            isListening = true;
+            processAudio();
+          })
+          .catch(function (error) {
+            console.error('Error accessing microphone:', error);
+          });
+      } else {
+        alert('Your browser does not support the required Web Audio API.');
+      }
+    }
+
+    function updateChart() {
+      chart.data.labels.push('');
+      chart.data.datasets[0].data.push(getAverageAmplitude());
+      chart.update();
+    }
+
+    function getAverageAmplitude() {
+      var sum = 0;
+      for (var i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      return sum / bufferLength;
+    }
+
+    // Initialize the chart
+    chart = new Chart(document.getElementById('chart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Noise Level',
+            data: [],
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2,
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            display: false
+          },
+          y: {
+            suggestedMin: 0,
+            suggestedMax: 100,
+            beginAtZero: true,
+            display: true,
+            ticks: {
+              stepSize: 10
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
