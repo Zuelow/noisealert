@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Noise Alert Alarm</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
     .alarm-container {
       display: flex;
@@ -30,8 +31,13 @@
 </head>
 <body>
   <div class="alarm-container">
+  <br>
     <div class="alarm-text">Noise Alert Alarm</div>
-    <button class="alarm-button" onclick="startListening()">Start Listening</button>
+    <div class="btn-group" role="group" aria-label="Buttons">
+      <button id="startButton" class="btn btn-primary alarm-button" onclick="startListening()">Start Listening</button>
+      <button id="pauseButton" class="btn btn-secondary alarm-button" onclick="pauseListening()" disabled>Pause Listening</button>
+      <button id="stopButton" class="btn btn-danger alarm-button" onclick="stopListening()" disabled>Stop Listening</button>
+    </div>
     <canvas id="chart"></canvas>
   </div>
 
@@ -45,7 +51,10 @@
     var dataArray;
     var chart;
     var isListening = false;
+    var isPaused = false;
     var alarmSound = document.getElementById('alarmSound');
+    var startTime;
+    var timerInterval;
 
     function startListening() {
       if (isListening) return;
@@ -63,31 +72,31 @@
 
         // Process the input audio stream
         function processAudio() {
-  analyser.getByteFrequencyData(dataArray);
+          analyser.getByteFrequencyData(dataArray);
 
-  // Calculate the average amplitude
-  var averageAmplitude = getAverageAmplitude();
+          // Calculate the average amplitude
+          var averageAmplitude = getAverageAmplitude();
 
-  // Check if the average amplitude exceeds a threshold
-  var noiseThreshold = 50; // Adjust this value as needed
-  var hasNoise = averageAmplitude > noiseThreshold;
+          // Check if the average amplitude exceeds a threshold
+          var noiseThreshold = 15; // Adjust this value as needed
+          var hasNoise = averageAmplitude > noiseThreshold;
 
-  if (hasNoise && alarmSound.paused) {
-    // Play the alarm sound when noise is detected and it's not already playing
-    alarmSound.play();
-  } else if (!hasNoise && !alarmSound.paused) {
-    // Stop the alarm sound when there is no noise and it's currently playing
-    alarmSound.pause();
-    alarmSound.currentTime = 0;
-  }
+          if (hasNoise && alarmSound.paused) {
+            // Play the alarm sound when noise is detected and it's not already playing
+            alarmSound.play();
+          } else if (!hasNoise && !alarmSound.paused) {
+            // Stop the alarm sound when there is no noise and it's currently playing
+            alarmSound.pause();
+            alarmSound.currentTime = 0;
+          }
 
-  // Update the chart
-  updateChart();
+          // Update the chart
+          updateChart();
 
-  if (isListening) {
-    requestAnimationFrame(processAudio);
-  }
-}
+          if (isListening) {
+            requestAnimationFrame(processAudio);
+          }
+        }
 
         // Connect the audio context to the analyser node
         navigator.mediaDevices.getUserMedia({ audio: true })
@@ -95,7 +104,12 @@
             var source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
             isListening = true;
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
             processAudio();
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('pauseButton').disabled = false;
+            document.getElementById('stopButton').disabled = false;
           })
           .catch(function (error) {
             console.error('Error accessing microphone:', error);
@@ -105,55 +119,89 @@
       }
     }
 
+    function pauseListening() {
+      if (!isListening || isPaused) return;
+
+      isPaused = true;
+      clearInterval(timerInterval);
+      audioContext.suspend();
+      document.getElementById('pauseButton').innerText = 'Resume Listening';
+    }
+
+    function stopListening() {
+      if (!isListening) return;
+
+      isListening = false;
+      isPaused = false;
+      clearInterval(timerInterval);
+      audioContext.close().then(function () {
+        document.getElementById('startButton').disabled = false;
+        document.getElementById('pauseButton').disabled = true;
+        document.getElementById('stopButton').disabled = true;
+        document.getElementById('pauseButton').innerText = 'Pause Listening';
+        clearChart();
+             });
+    }
+
+    function getAverageAmplitude() {
+      var sum = dataArray.reduce(function (a, b) {
+        return a + b;
+      });
+      return sum / bufferLength;
+    }
+
     function updateChart() {
-      chart.data.labels.push('');
+      if (!chart) {
+        var canvas = document.getElementById('chart');
+        var ctx = canvas.getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [{
+              label: 'Amplitude',
+              data: [],
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              x: {
+                display: false
+              },
+              y: {
+                suggestedMin: 0,
+                suggestedMax: 255
+              }
+            },
+            plugins: {
+              legend: {
+                display: false
+              }
+            }
+          }
+        });
+      }
+
+      var elapsedTime = (Date.now() - startTime) / 1000;
+      chart.data.labels.push(elapsedTime.toFixed(1));
       chart.data.datasets[0].data.push(getAverageAmplitude());
       chart.update();
     }
 
-    function getAverageAmplitude() {
-      var sum = 0;
-      for (var i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
+    function clearChart() {
+      if (chart) {
+        chart.destroy();
+        chart = null;
       }
-      return sum / bufferLength;
     }
 
-    // Initialize the chart
-    chart = new Chart(document.getElementById('chart').getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: 'Noise Level',
-            data: [],
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 2,
-            pointRadius: 0,
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            display: false
-          },
-          y: {
-            suggestedMin: 0,
-            suggestedMax: 100,
-            beginAtZero: true,
-            display: true,
-            ticks: {
-              stepSize: 10
-            }
-          }
-        }
-      }
-    });
+    function updateTimer() {
+      var elapsedTime = (Date.now() - startTime) / 1000;
+      document.getElementById('timer').innerText = elapsedTime.toFixed(1) + 's';
+    }
   </script>
 </body>
 </html>
